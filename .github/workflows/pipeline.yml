@@ -1,4 +1,4 @@
-%%writefile /content/{GITHUB_REPO}/.github/workflows/pipeline.yml
+%%writefile .github/workflows/pipeline.yml
 name: Tourism Project Pipeline
 
 on:
