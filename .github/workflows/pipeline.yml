@@ -1,3 +1,4 @@
+%%writefile /content/{GITHUB_REPO}/.github/workflows/pipeline.yml
 name: Tourism Project Pipeline
 
 on:
@@ -65,28 +66,15 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install huggingface_hub git-remote-hg
-      - name: Configure Git
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git config --global init.defaultBranch main
-      - name: Push files to Hugging Face Space
+          pip install huggingface_hub
+      - name: Push files to Frontend Hugging Face Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           cd tourism_project/deployment
-          # Clone the existing Hugging Face space
-          git clone https://${{ secrets.HF_TOKEN }}@huggingface.co/spaces/alagarst/tourism-package-prediction hf-space
-          cd hf-space
-          # Copy all files from deployment folder
-          cp -r ../* . || true
-          cp ../.* . 2>/dev/null || true
-          # Configure git
+          git init
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          # Add and commit changes
           git add .
-          git commit -m "Deploy via GitHub Actions - $(date)"
-          # Push to Hugging Face
-          git push origin main
+          git commit -m "Deploy to Hugging Face"
+          git push --force https://${{ secrets.HF_TOKEN }}@huggingface.co/spaces/alagarst/tourism-package-prediction main
