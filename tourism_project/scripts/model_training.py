@@ -38,7 +38,7 @@ def main():
         }
     }
 
-    # Train models
+    # Train model
     best_models = {}
     results = []
 
