@@ -54,9 +54,13 @@ def main():
     y_train.to_csv('tourism_project/data/y_train.csv', index=False)
     y_test.to_csv('tourism_project/data/y_test.csv', index=False)
 
-    # Save preprocessing objects
+    # Save preprocessing objects and training column names
     joblib.dump(label_encoders, 'tourism_project/data/label_encoders.pkl')
     joblib.dump(scaler, 'tourism_project/data/scaler.pkl')
+    joblib.dump(imputer_numeric, 'tourism_project/data/imputer_numeric.pkl')
+    joblib.dump(imputer_categorical, 'tourism_project/data/imputer_categorical.pkl')
+    joblib.dump(X_train.columns.tolist(), 'tourism_project/data/X_train_columns.pkl')
+
 
     # Upload to Hugging Face
     HF_TOKEN = os.getenv('HF_TOKEN')
@@ -67,7 +71,12 @@ def main():
         'tourism_project/data/X_train.csv',
         'tourism_project/data/X_test.csv',
         'tourism_project/data/y_train.csv',
-        'tourism_project/data/y_test.csv'
+        'tourism_project/data/y_test.csv',
+        'tourism_project/data/scaler.pkl',
+        'tourism_project/data/label_encoders.pkl',
+        'tourism_project/data/imputer_numeric.pkl',
+        'tourism_project/data/imputer_categorical.pkl',
+        'tourism_project/data/X_train_columns.pkl' # Upload the new file
     ]
 
     for file_path in files_to_upload:
