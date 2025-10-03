@@ -24,15 +24,15 @@ def load_model():
     try:
         # Download model files from Hugging Face
         model_path = hf_hub_download(
-            repo_id="your_username/tourism-package-prediction-model",
+            repo_id="alagarst/tourism-package-prediction-model",
             filename="best_model.pkl"
         )
         scaler_path = hf_hub_download(
-            repo_id="your_username/tourism-package-prediction-model",
+            repo_id="alagarst/tourism-package-prediction-model",
             filename="scaler.pkl"
         )
         label_encoders_path = hf_hub_download(
-            repo_id="your_username/tourism-package-prediction-model",
+            repo_id="alagarst/tourism-package-prediction-model",
             filename="label_encoders.pkl"
         )
 
