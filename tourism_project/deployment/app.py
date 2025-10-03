@@ -35,17 +35,35 @@ def load_model():
             repo_id="alagarst/tourism-package-prediction-model",
             filename="label_encoders.pkl"
         )
+        imputer_numeric_path = hf_hub_download(
+            repo_id="alagarst/tourism-package-prediction-model",
+            filename="imputer_numeric.pkl"
+        )
+        imputer_categorical_path = hf_hub_download(
+            repo_id="alagarst/tourism-package-prediction-model",
+            filename="imputer_categorical.pkl"
+        )
+        # Download training column names
+        X_train_columns_path = hf_hub_download(
+            repo_id="alagarst/tourism-package-prediction-dataset", # Columns are saved in the dataset repo
+            filename="X_train_columns.pkl"
+        )
+
 
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
         label_encoders = joblib.load(label_encoders_path)
+        imputer_numeric = joblib.load(imputer_numeric_path)
+        imputer_categorical = joblib.load(imputer_categorical_path)
+        X_train_columns = joblib.load(X_train_columns_path)
 
-        return model, scaler, label_encoders
+
+        return model, scaler, label_encoders, imputer_numeric, imputer_categorical, X_train_columns
     except Exception as e:
-        st.error(f"Error loading model: {e}")
-        return None, None, None
+        st.error(f"Error loading model or preprocessing objects: {e}")
+        return None, None, None, None, None, None
 
-model, scaler, label_encoders = load_model()
+model, scaler, label_encoders, imputer_numeric, imputer_categorical, X_train_columns = load_model()
 
 # Create input form
 st.header("Customer Information")
@@ -112,14 +130,54 @@ input_data = {
 input_df = pd.DataFrame([input_data])
 
 # Preprocess input data
-if model is not None and scaler is not None and label_encoders is not None:
-    # Encode categorical variables
-    for column in input_df.select_dtypes(include=['object']).columns:
-        if column in label_encoders:
-            input_df[column] = label_encoders[column].transform([input_df[column].iloc[0]])[0]
+if model is not None and scaler is not None and label_encoders is not None and X_train_columns is not None:
+    # Ensure input_df has the same columns as X_train and in the same order
+    # Add missing columns with default values (e.g., 0 or median/mode if applicable)
+    # For simplicity here, we'll assume the input form covers all necessary features
+    # and focus on reindexing to match the training column order.
+    # A more robust approach might involve imputing missing columns with training data statistics.
 
-    # Scale features
+    # Reindex input_df to match the order of X_train columns
+    # This will also handle the missing 'Unnamed: 0' by adding it with NaN, which will be dropped next.
+    input_df = input_df.reindex(columns=X_train_columns, fill_value=0) # Using 0 as a placeholder, actual imputation is handled by imputers if needed
+
+    # Explicitly drop 'Unnamed: 0' column if it exists (it should now exist after reindexing if it was in X_train_columns)
+        # Drop unwanted 'Unnamed: 0' column if present
+    if 'Unnamed: 0' in input_df.columns:
+        input_df = input_df.drop('Unnamed: 0', axis=1)
+
+    # Ensure same columns and order as scaler/model were trained on
+    if hasattr(scaler, "feature_names_in_"):
+        expected_features = scaler.feature_names_in_
+    else:
+        # fallback: use X_train_columns minus 'Unnamed: 0'
+        expected_features = [col for col in X_train_columns if col != 'Unnamed: 0']
+
+    # Reindex input_df to match training features
+    input_df = input_df.reindex(columns=expected_features, fill_value=0)
+
+    # Impute missing values
+    numeric_cols_input = input_df.select_dtypes(include=[np.number]).columns
+    categorical_cols_input = input_df.select_dtypes(include=['object']).columns
+
+    if imputer_numeric and len(numeric_cols_input) > 0:
+         input_df[numeric_cols_input] = imputer_numeric.transform(input_df[numeric_cols_input])
+    if imputer_categorical and len(categorical_cols_input) > 0:
+         input_df[categorical_cols_input] = imputer_categorical.transform(input_df[categorical_cols_input])
+
+    # Encode categorical variables
+    for column in categorical_cols_input:
+        if column in label_encoders:
+            try:
+                input_df[column] = label_encoders[column].transform(input_df[column].astype(str))
+            except ValueError:
+                st.warning(f"Unknown value for {column}: {input_df[column].iloc[0]}. Using mode imputation.")
+                input_df[column] = imputer_categorical.transform(input_df[[column]])[:, 0]
+
+    # Finally scale features
     input_scaled = scaler.transform(input_df)
+
+
 
     # Make prediction
     if st.button("Predict Purchase Probability"):
@@ -148,7 +206,7 @@ if model is not None and scaler is not None and label_encoders is not None:
         st.bar_chart(prob_df.set_index('Outcome'))
 
 else:
-    st.error("Model not loaded properly. Please check the configuration.")
+    st.error("Model or preprocessing objects not loaded properly. Please check the configuration.")
 
 # Add some information about the model
 with st.expander("About this Model"):
