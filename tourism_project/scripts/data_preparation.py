@@ -87,6 +87,8 @@ def main():
             repo_type="dataset",
             token=HF_TOKEN
         )
+        print(f"Uploaded {os.path.basename(file_path)} to {repo_name}")
+
 
     print("Data preparation completed and uploaded to Hugging Face!")
 
