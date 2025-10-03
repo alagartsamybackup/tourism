@@ -101,7 +101,7 @@ def main():
 
     api = HfApi()
 
-    # Upload model and preprocessing files
+    # Upload model and preprocessing file
     model_files = [
         'tourism_project/model_building/best_model.pkl',
         'tourism_project/data/scaler.pkl',
