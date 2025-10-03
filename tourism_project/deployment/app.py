@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import joblib
 from huggingface_hub import hf_hub_download
+import os
 
 # Set page config
 st.set_page_config(
@@ -18,6 +19,9 @@ This app predicts whether a customer will purchase the Wellness Tourism Package
 based on their profile and interaction data.
 """)
 
+# Get Hugging Face token from environment variables
+HF_TOKEN = os.getenv("HF_TOKEN")
+
 # Load model and preprocessing objects from Hugging Face
 @st.cache_resource
 def load_model():
@@ -25,28 +29,34 @@ def load_model():
         # Download model files from Hugging Face
         model_path = hf_hub_download(
             repo_id="alagarst/tourism-package-prediction-model",
-            filename="best_model.pkl"
+            filename="best_model.pkl",
+            token=HF_TOKEN # Pass token for authentication
         )
         scaler_path = hf_hub_download(
             repo_id="alagarst/tourism-package-prediction-model",
-            filename="scaler.pkl"
+            filename="scaler.pkl",
+            token=HF_TOKEN # Pass token for authentication
         )
         label_encoders_path = hf_hub_download(
             repo_id="alagarst/tourism-package-prediction-model",
-            filename="label_encoders.pkl"
+            filename="label_encoders.pkl",
+            token=HF_TOKEN # Pass token for authentication
         )
         imputer_numeric_path = hf_hub_download(
             repo_id="alagarst/tourism-package-prediction-model",
-            filename="imputer_numeric.pkl"
+            filename="imputer_numeric.pkl",
+            token=HF_TOKEN # Pass token for authentication
         )
         imputer_categorical_path = hf_hub_download(
             repo_id="alagarst/tourism-package-prediction-model",
-            filename="imputer_categorical.pkl"
+            filename="imputer_categorical.pkl",
+            token=HF_TOKEN # Pass token for authentication
         )
         # Download training column names
         X_train_columns_path = hf_hub_download(
             repo_id="alagarst/tourism-package-prediction-dataset", # Columns are saved in the dataset repo
-            filename="X_train_columns.pkl"
+            filename="X_train_columns.pkl",
+            token=HF_TOKEN # Pass token for authentication
         )
 
 
@@ -63,7 +73,12 @@ def load_model():
         st.error(f"Error loading model or preprocessing objects: {e}")
         return None, None, None, None, None, None
 
-model, scaler, label_encoders, imputer_numeric, imputer_categorical, X_train_columns = load_model()
+if HF_TOKEN is None:
+    st.error("Hugging Face token not found. Please set the HF_TOKEN environment variable in your Hugging Face Space settings.")
+    model, scaler, label_encoders, imputer_numeric, imputer_categorical, X_train_columns = None, None, None, None, None, None
+else:
+    model, scaler, label_encoders, imputer_numeric, imputer_categorical, X_train_columns = load_model()
+
 
 # Create input form
 st.header("Customer Information")
@@ -138,45 +153,45 @@ if model is not None and scaler is not None and label_encoders is not None and X
     # A more robust approach might involve imputing missing columns with training data statistics.
 
     # Reindex input_df to match the order of X_train columns
-    # This will also handle the missing 'Unnamed: 0' by adding it with NaN, which will be dropped next.
     input_df = input_df.reindex(columns=X_train_columns, fill_value=0) # Using 0 as a placeholder, actual imputation is handled by imputers if needed
 
     # Explicitly drop 'Unnamed: 0' column if it exists (it should now exist after reindexing if it was in X_train_columns)
-        # Drop unwanted 'Unnamed: 0' column if present
     if 'Unnamed: 0' in input_df.columns:
         input_df = input_df.drop('Unnamed: 0', axis=1)
 
-    # Ensure same columns and order as scaler/model were trained on
-    if hasattr(scaler, "feature_names_in_"):
-        expected_features = scaler.feature_names_in_
-    else:
-        # fallback: use X_train_columns minus 'Unnamed: 0'
-        expected_features = [col for col in X_train_columns if col != 'Unnamed: 0']
-
-    # Reindex input_df to match training features
-    input_df = input_df.reindex(columns=expected_features, fill_value=0)
-
-    # Impute missing values
+    # Impute any potentially missing values after reindexing (though the form should cover most)
+    # This step might be redundant if the form covers all features, but is safer.
     numeric_cols_input = input_df.select_dtypes(include=[np.number]).columns
     categorical_cols_input = input_df.select_dtypes(include=['object']).columns
 
-    if imputer_numeric and len(numeric_cols_input) > 0:
+    if imputer_numeric:
          input_df[numeric_cols_input] = imputer_numeric.transform(input_df[numeric_cols_input])
-    if imputer_categorical and len(categorical_cols_input) > 0:
+    if imputer_categorical:
          input_df[categorical_cols_input] = imputer_categorical.transform(input_df[categorical_cols_input])
+
 
     # Encode categorical variables
     for column in categorical_cols_input:
         if column in label_encoders:
+            # Ensure the value is in the known classes, handle unknown values if necessary
             try:
+                # We need to transform the entire column (even if it's just one row)
                 input_df[column] = label_encoders[column].transform(input_df[column].astype(str))
             except ValueError:
                 st.warning(f"Unknown value for {column}: {input_df[column].iloc[0]}. Using mode imputation.")
-                input_df[column] = imputer_categorical.transform(input_df[[column]])[:, 0]
+                # Use the categorical imputer for unseen values - note: imputer_categorical.transform expects 2D array
+                input_df[column] = imputer_categorical.transform(input_df[[column]])[:,0]
 
-    # Finally scale features
-    input_scaled = scaler.transform(input_df)
 
+    # Scale features
+    # Ensure the order of columns matches training data AFTER dropping 'Unnamed: 0' and encoding
+    # This should be handled by the reindex step and dropping 'Unnamed: 0'
+    # Let's get the columns after dropping 'Unnamed: 0' for the scaler transform
+    cols_for_scaling = [col for col in X_train_columns if col != 'Unnamed: 0']
+    input_df_scaled = input_df[cols_for_scaling]
+
+
+    input_scaled = scaler.transform(input_df_scaled)
 
 
     # Make prediction
