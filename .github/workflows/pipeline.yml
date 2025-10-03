@@ -58,9 +58,9 @@ jobs:
           python tourism_project/scripts/model_training.py
 
   deploy-hosting:
-    runs-on: ubuntu-latest
-    needs: [model-training, data-prep, register-dataset]
-    steps:
+      runs-on: ubuntu-latest
+      needs: [model-training, data-prep, register-dataset]
+      steps:
       - uses: actions/checkout@v3
       - name: Install Dependencies
         run: |
@@ -75,6 +75,7 @@ jobs:
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add .
-          git commit -m "Deploy to Hugging Face"
+          git commit -m "Deploy to Hugging Face" || echo "No changes to commit"
+          git branch -M main   # safer than forcing 'master'
           git remote add space https://huggingface.co/spaces/alagarst/tourism-package-prediction
-          git push --force space master # Changed 'main' to 'master' and specifying the remote name
+          git push --force https://user:${HF_TOKEN}@huggingface.co/spaces/alagarst/tourism-package-prediction main
