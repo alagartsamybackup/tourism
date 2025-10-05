@@ -1,0 +1,134 @@
+name: Tourism MLOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.9'
+  PROJECT_NAME: 'tourism-wellness-prediction'
+
+jobs:
+  
+  data-registration:
+    name: Register Dataset
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas huggingface-hub
+      
+      - name: Register dataset on Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python scripts/data_registration.py
+
+  data-preparation:
+    name: Prepare Data
+    runs-on: ubuntu-latest
+    needs: data-registration
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scikit-learn huggingface-hub
+      
+      - name: Run data preparation
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python scripts/data_preparation.py
+
+  model-training:
+    name: Train Models
+    runs-on: ubuntu-latest
+    needs: data-preparation
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas numpy scikit-learn xgboost mlflow huggingface-hub
+      
+      - name: Start MLflow server
+        run: |
+          mlflow server --host 0.0.0.0 --port 5000 &
+          sleep 5
+      
+      - name: Train and evaluate models
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          MLFLOW_TRACKING_URI: http://localhost:5000
+        run: |
+          python scripts/model_training.py
+
+  model-deployment:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: model-training
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install huggingface-hub
+      
+      - name: Deploy to Hugging Face Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        working-directory: ./deployment
+        run: |
+          python deploy.py
+
+  notify-success:
+    name: Notify Success
+    runs-on: ubuntu-latest
+    needs: [data-registration, data-preparation, model-training, model-deployment]
+    if: success()
+    
+    steps:
+      - name: Success notification
+        run: |
+          echo "Pipeline completed successfully"
+          echo "Dataset registered and processed"
+          echo "Models trained and evaluated"
+          echo "Application deployed"
